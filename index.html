@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Urban Green Space</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+
+<style>
+body { font-family: Arial; margin:0; background:#f4f7f6; }
+header { background:#2e7d32; color:white; padding:15px; text-align:center; }
+.container { padding:15px; }
+#map { height:400px; margin-bottom:10px; border-radius:10px; }
+.card { background:white; padding:10px; margin-bottom:10px; border-radius:10px; }
+button { background:#2e7d32; color:white; padding:8px; border:none; cursor:pointer; }
+canvas { max-width:400px; margin:auto; display:block; }
+.score { font-size:20px; font-weight:bold; color:green; }
+</style>
+</head>
+
+<body>
+
+<header><h2>🌱 Urban Green Space</h2></header>
+
+<div class="container">
+
+<div class="card">
+<input type="text" id="locationInput" placeholder="Enter city">
+<button onclick="searchLocation()">Search</button>
+<button onclick="getLocation()">My Location</button>
+<p id="status"></p>
+</div>
+
+<div id="map"></div>
+
+<div class="card">
+<p>Distance: <span id="distance">-</span></p>
+<p>Parks: <span id="parks">-</span></p>
+<p>Oxygen: <span id="oxygen">-</span></p>
+<p>CO₂: <span id="co2">-</span></p>
+<p>AQI: <span id="aqi">-</span></p>
+<p class="score">Score: <span id="score">-</span></p>
+</div>
+
+<div class="card"><canvas id="envPieChart"></canvas></div>
+<div class="card"><canvas id="envBarChart"></canvas></div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+let map = L.map("map").setView([18.5204, 73.8567], 12);
+let userMarker;
+let pieChart, barChart;
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+/* DEFAULT CHART */
+window.onload = function() {
+  drawCharts(60, 20, 450, 90);
+};
+
+/* SEARCH */
+function searchLocation() {
+  const place = document.getElementById("locationInput").value;
+
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${place}`)
+  .then(res => res.json())
+  .then(data => {
+    if(!data.length) return alert("Location not found");
+    showLocation(data[0].lat, data[0].lon);
+  })
+  .catch(() => alert("Search error"));
+}
+
+/* GPS */
+function getLocation() {
+  navigator.geolocation.getCurrentPosition(pos => {
+    showLocation(pos.coords.latitude, pos.coords.longitude);
+  });
+}
+
+function showLocation(lat, lon) {
+  if (userMarker) map.removeLayer(userMarker);
+  userMarker = L.marker([lat, lon]).addTo(map);
+  map.setView([lat, lon], 14);
+
+  /* ⚠️ SIMULATED DATA (API fail avoid) */
+  const distance = Math.random() * 2;
+  const parks = Math.floor(Math.random() * 5) + 1;
+
+  const score = calcScore(distance, parks);
+  const oxygen = calcOxygen(parks);
+  const co2 = calcCO2(distance);
+  const aqi = calcAQI(score);
+
+  updateUI(distance, parks, oxygen, co2, aqi, score);
+}
+
+/* UI UPDATE */
+function updateUI(d, p, o, c, a, s){
+  document.getElementById("distance").innerText = d.toFixed(2);
+  document.getElementById("parks").innerText = p;
+  document.getElementById("oxygen").innerText = o;
+  document.getElementById("co2").innerText = c;
+  document.getElementById("aqi").innerText = a;
+  document.getElementById("score").innerText = s;
+
+  drawCharts(s, o, c, a);
+}
+
+/* CALC */
+function calcScore(d,c){
+  return Math.max(0, Math.min(100, Math.round(100 - d*20 + c*5)));
+}
+function calcOxygen(c){
+  return Math.min(21, Number((18 + c*0.3).toFixed(1)));
+}
+function calcCO2(d){
+  return Math.round(420 + d*30);
+}
+function calcAQI(s){
+  return Math.max(30, 150 - s);
+}
+
+/* CHART */
+function drawCharts(score, oxygen, co2, aqi){
+
+  const pieCtx = document.getElementById("envPieChart").getContext("2d");
+  const barCtx = document.getElementById("envBarChart").getContext("2d");
+
+  if(pieChart) pieChart.destroy();
+  if(barChart) barChart.destroy();
+
+  pieChart = new Chart(pieCtx,{
+    type:"pie",
+    data:{
+      labels:["Score","Oxygen","CO2","AQI"],
+      datasets:[{ data:[score, oxygen, co2/10, aqi] }]
+    }
+  });
+
+  barChart = new Chart(barCtx,{
+    type:"bar",
+    data:{
+      labels:["Score","Oxygen","CO2","AQI"],
+      datasets:[{ data:[score, oxygen, co2, aqi] }]
+    }
+  });
+}
+
+</script>
+
+</body>
+</html>
